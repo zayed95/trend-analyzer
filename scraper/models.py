@@ -2,6 +2,8 @@ import datetime
 from pydantic import BaseModel
 
 class RawPost(BaseModel):
-    language: str
     content: str
     timestamp: datetime
+
+    class Config:
+        arbitrary_types_allowed=True

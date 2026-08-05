@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Integer, Text, DateTime
 from sqlalchemy.orm import declarative_base
 from enum import Enum
 
@@ -13,4 +13,3 @@ class RawPost(Base):
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, nullable=False)
-    language = Column(SQLEnum(Language), nullable=False)
