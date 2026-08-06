@@ -1,60 +1,82 @@
-import json
-import re
+import httpx
 import asyncio
-import requests
 from datetime import datetime
-from sqlalchemy.ext.asyncio.session import AsyncSession
+from sqlalchemy import insert
 from db.models import Language, RawPost
-from db.database import get_session, init_db
+from db.database import AsyncSessionLocal
 
 SITE_URL = "https://mastodon.social/api/v1/timelines/tag/"
 SEARCH_QUERY = "infantino"
 url = f"{SITE_URL}/{SEARCH_QUERY}"
-max_id = 0
+pages = 20
 
-def scrape(limit: int = 20):
+queue = asyncio.Queue(maxsize=100)
 
-    scraped_posts = []
+async def scrape():
+    max_id = None
 
-    while len(scraped_posts) < limit:
+    async with httpx.AsyncClient() as client:
+        for _ in range(pages):
 
-        response = requests.get(url=url)
-        if response.status_code == 200:
-            posts = response.json()
-            if not posts:
+            params = {"limit": 40}
+            if max_id:
+                params["max_id"] = max_id
+
+            batch = []
+
+            try:
+                response = await client.get(
+                    url=url,
+                    params=params
+                )
+
+            except not response.json():    
+                print("No posts found")
                 return None
+            
+            except response.status_code == 429:
+                await asyncio.sleep(60)
 
+                        
+            posts = response.json()
+            
             for post in posts:
                 if post['language'] == Language.ENGLISH.value and len(post['content']) > 30:
-                    
-                    scraped_posts.append({
-                        "timestamp": post['content'],
-                        "content": datetime.fromisoformat(post['created_at'].replace("Z", "+00:00"))
+
+                    batch.append({
+                        "timestamp": datetime.strptime(post['created_at'], "%Y-%m-%dT%H:%M:%S.%fZ"),
+                        "content": post['content']
                     })
 
-                    max_id = post['id']
+            await queue.put(batch)
+            max_id = posts[-1]["id"]
 
-            return scraped_posts
-        print("Error")
-        return None
+        await queue.put(None)
 
+async def db_insert(batch):
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(
+                insert(RawPost),
+                batch
+            )
 
-async def ingest(posts: list):
+async def db_ingest():
+    while True:
+        batch = await queue.get()
 
-    if not posts or len(posts) == 0:
-        print("Error: no posts found!")
-        return None
+        if not batch:
+            queue.task_done()
+            break
+        try:
+            await db_insert(batch)
+        except Exception as e:
+            print("Error: " + e)
+        finally:
+            queue.task_done()
 
-    await init_db()
-    session =  get_session()
+async def main():
+    await asyncio.gather(scrape(), db_ingest())
 
-    for post in posts:
-        raw_post = RawPost(**post)
-        session.add(raw_post)
-        await session.commit()
-        await session.refresh(raw_post)
-
-    print("All done!")
-
-posts = scrape()
-asyncio.run(ingest(posts)) 
+if __name__ == "__main__":
+    asyncio.run(main())
