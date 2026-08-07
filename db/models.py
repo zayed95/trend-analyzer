@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, DateTime
+from sqlalchemy import Column, Integer, Text, DateTime, String
 from sqlalchemy.orm import declarative_base
 from enum import Enum
 
@@ -13,3 +13,4 @@ class RawPost(Base):
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, nullable=False)
+    keyword = Column(String, nullable=False)

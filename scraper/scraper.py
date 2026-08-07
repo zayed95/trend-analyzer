@@ -2,19 +2,16 @@ import httpx
 import asyncio
 from datetime import datetime
 from sqlalchemy import insert
-from db.models import Language, RawPost
-from db.database import AsyncSessionLocal
+from db.models import Language, RawPost, Base
+from db.database import AsyncSessionLocal, init_db
 
 SITE_URL = "https://mastodon.social/api/v1/timelines/tag/"
-SEARCH_QUERY = "infantino"
-url = f"{SITE_URL}/{SEARCH_QUERY}"
-pages = 20
 
 queue = asyncio.Queue(maxsize=100)
 
-async def scrape():
+async def scrape(query: str, pages: int = 10):
     max_id = None
-
+    url = f"{SITE_URL}/{query}"
     async with httpx.AsyncClient() as client:
         for _ in range(pages):
 
@@ -30,22 +27,27 @@ async def scrape():
                     params=params
                 )
 
-            except not response.json():    
-                print("No posts found")
-                return None
+                posts = response.json()  
+                
             
-            except response.status_code == 429:
-                await asyncio.sleep(60)
+                if response.status_code == 429:
+                    await asyncio.sleep(60)
+                    continue
 
-                        
-            posts = response.json()
-            
+            except Exception as e:
+                print(f"request error: {e}")         
+
+            if not posts:
+                print(f"No posts in that hashtag: {query}")
+                break
+
             for post in posts:
                 if post['language'] == Language.ENGLISH.value and len(post['content']) > 30:
 
                     batch.append({
                         "timestamp": datetime.strptime(post['created_at'], "%Y-%m-%dT%H:%M:%S.%fZ"),
-                        "content": post['content']
+                        "content": post['content'],
+                        "keyword": query
                     })
 
             await queue.put(batch)
@@ -60,23 +62,25 @@ async def db_insert(batch):
                 insert(RawPost),
                 batch
             )
+            await session.commit()
 
 async def db_ingest():
     while True:
         batch = await queue.get()
 
-        if not batch:
+        if batch is None:
             queue.task_done()
             break
         try:
             await db_insert(batch)
         except Exception as e:
-            print("Error: " + e)
+            print(f"Error: {e}")
         finally:
             queue.task_done()
 
 async def main():
-    await asyncio.gather(scrape(), db_ingest())
+    await init_db()
+    await asyncio.gather(scrape("trump", 1), db_ingest())
 
 if __name__ == "__main__":
     asyncio.run(main())

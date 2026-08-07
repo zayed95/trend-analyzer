@@ -1,18 +1,20 @@
 import os
+from typing_extensions import override
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from db.models import Base
+from db.models import Base, RawPost
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+print("Using DATABASE_URL:", DATABASE_URL)
 
 engine = create_async_engine(
     DATABASE_URL, 
-    echo=True,
-    connect_args={"check_same_thread": False}
+    echo=True
 )
 
 AsyncSessionLocal = async_sessionmaker(
-    autocommit=False,
     autoflush=False,
     bind=engine,
     expire_on_commit=False
