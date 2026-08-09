@@ -24,11 +24,9 @@ async def scrape(query: str, pages: int = 10):
             try:
                 response = await client.get(
                     url=url,
-                    params=params
-                )
+                    params=params)
 
                 posts = response.json()  
-                
             
                 if response.status_code == 429:
                     await asyncio.sleep(60)
