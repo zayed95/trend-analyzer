@@ -15,10 +15,14 @@ class RawPost(Base):
     timestamp = Column(DateTime, nullable=False)
     keyword = Column(String, nullable=False)
 
+    def __repr__(self):
+        return f"('{self.id}', '{self.content}', '{self.keyword}', '{self.timestamp}')"
+
 class CleanPost(Base):
     __tablename__ = "clean_post"
 
     id = Column(Integer, primary_key=True, index=True)
+    raw_id = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, nullable=False)
     keyword = Column(String, nullable=False)

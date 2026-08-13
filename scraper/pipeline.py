@@ -1,26 +1,69 @@
 import asyncio
-from db.database import init_db, AsyncSessionLocal
-from db.models import RawPost
-from sqlalchemy import select
+from turtle import pos
+import emoji
+import re
+from db.database import AsyncSessionLocal, engine, Base
+from db.models import RawPost, CleanPost
+from sqlalchemy import select, insert
+
+queue = asyncio.Queue(maxsize=100)
+# queue_2 = asyncio.Queue(maxsize=100)
+
 # Step 1
 # Fetch new row added to the database not processed yet
-async def fetch():
+async def extract(keyword: str):
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            data = await session.execute(select(RawPost))
-        return data.scalars().all() 
+            data = await session.execute(select(RawPost).where(RawPost.keyword == keyword))
+            return data.scalars().all()
 
-async def main():
-    await init_db()
-    data = await fetch()
-    print(data)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-# posts =  await fetch()
-# print(fetch())
 # Step 2
 # Process the new data 
+def clean(text: str):
+    text = text.lower().strip()
+    text = re.sub('<.*?>', '', text)
+    text = emoji.demojize(text)
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'#\w+', '', text)
+    return text
+
+def transform(posts: list):
+
+    clean_posts = []
+    for post in posts:
+
+        clean_posts.append({
+            "raw_id": post.id,
+            "content": clean(post.content),
+            "timestamp": post.timestamp,
+            "keyword": post.keyword
+        })
+
+    return clean_posts
 
 # step 3
-# Ingest the newly-processed data into the database
+# Ingest the newly-processed data into the database 
+async def db_insert(batch: list):
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(
+                insert(CleanPost),
+                batch
+            )
+            await session.commit()
+
+async def main():
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        posts = await extract("trump")
+        if posts:
+            clean_posts = transform(posts)
+            await db_insert(clean_posts)
+    finally:
+        await engine.dispose()
+
+if __name__ == "__main__":
+    asyncio.run(main(), debug=True)

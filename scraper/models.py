@@ -1,7 +1,7 @@
 import datetime
 from pydantic import BaseModel
 
-class RawPost(BaseModel):
+class Post(BaseModel):
     content: str
     timestamp: datetime
     keyword: str
