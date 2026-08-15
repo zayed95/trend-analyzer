@@ -1,8 +1,7 @@
 import os
-from typing_extensions import override
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from db.models import Base, RawPost, CleanPost
+from db.models import Base
 from dotenv import load_dotenv
 load_dotenv(override=True)
 

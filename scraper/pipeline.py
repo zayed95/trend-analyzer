@@ -1,13 +1,10 @@
 import asyncio
-from turtle import pos
 import emoji
 import re
 from db.database import AsyncSessionLocal, engine, Base
 from db.models import RawPost, CleanPost
 from sqlalchemy import select, insert
-
-queue = asyncio.Queue(maxsize=100)
-# queue_2 = asyncio.Queue(maxsize=100)
+from sqlalchemy.exc import IntegrityError
 
 # Step 1
 # Fetch new row added to the database not processed yet
@@ -47,11 +44,14 @@ def transform(posts: list):
 async def db_insert(batch: list):
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            await session.execute(
-                insert(CleanPost),
-                batch
-            )
-            await session.commit()
+            try:
+                await session.execute(
+                    insert(CleanPost),
+                    batch
+                )
+            except IntegrityError:
+                await session.rollback()
+        await session.commit()
 
 async def main():
     try:

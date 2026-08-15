@@ -22,7 +22,7 @@ class CleanPost(Base):
     __tablename__ = "clean_post"
 
     id = Column(Integer, primary_key=True, index=True)
-    raw_id = Column(Integer, nullable=False)
+    raw_id = Column(Integer, nullable=False, unique=True)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, nullable=False)
     keyword = Column(String, nullable=False)
