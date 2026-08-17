@@ -2,6 +2,7 @@ import httpx
 import asyncio
 from datetime import datetime
 from sqlalchemy import insert
+from sqlalchemy.exc import IntegrityError
 from db.models import Language, RawPost, Base
 from db.database import AsyncSessionLocal, init_db
 
@@ -44,6 +45,7 @@ async def scrape(query: str, pages: int = 10):
 
                     batch.append({
                         "timestamp": datetime.strptime(post['created_at'], "%Y-%m-%dT%H:%M:%S.%fZ"),
+                        "platform_id": post['id'],
                         "content": post['content'],
                         "keyword": query
                     })
@@ -56,11 +58,14 @@ async def scrape(query: str, pages: int = 10):
 async def db_insert(batch):
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            await session.execute(
-                insert(RawPost),
-                batch
-            )
-            await session.commit()
+            try:
+                await session.execute(
+                    insert(RawPost),
+                    batch
+                )
+            except IntegrityError:
+                await session.rollback()
+        await session.commit()
 
 async def db_ingest():
     while True:
