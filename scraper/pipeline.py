@@ -16,7 +16,7 @@ async def extract(keyword: str):
 
 # Step 2
 # Process the new data 
-def clean(text: str):
+def clean(text: str) -> str:
     text = text.lower().strip()
     text = re.sub('<.*?>', '', text)
     text = emoji.demojize(text)
@@ -25,7 +25,7 @@ def clean(text: str):
     text = re.sub(r'#\w+', '', text)
     return text
 
-def transform(posts: list):
+def transform(posts: list) -> list:
 
     clean_posts = []
     for post in posts:
